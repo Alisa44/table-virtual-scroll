@@ -1,26 +1,9 @@
 import React, {useEffect, useState} from 'react';
-import type {Publication} from "../../types/types.ts";
-import {URL} from '../../constants/constants.ts'
-
-type SortParams = {
-    field: keyof Publication;
-    direction: 'asc' | 'desc';
-}
-
-const getQueryString = (page = 0, perPage = 10, sort?: SortParams, search?: string): string => {
-    let queryString = `${URL}?per-page=${perPage}&page=${page}`;
-    if (sort) {
-        const {field, direction} = sort;
-        queryString += `&sort=${field}:${direction}`
-    }
-    if (search) {
-        queryString += `&title.search=${search.toUpperCase()}`
-    }
-    return queryString
-}
+import type {RawPublication, SortParams, TablePublication} from "../../types/types.ts";
+import {getQueryString, mapDataForTable} from "../../utils/utils.ts";
 
 const Table = () => {
-    const [data, setData] = useState<Publication[]>(
+    const [data, setData] = useState<TablePublication[]>(
         []);
     const [page, setPage] = useState<number>(1);
     const [perPage, setPerPage] = useState<number>(10);
@@ -32,7 +15,12 @@ const Table = () => {
         fetch(queryString)
             .then(res => res.json())
             .then(response => {
-                console.log(response)
+                const mapedData = mapDataForTable(response.results);
+                const dataWithAuthors = mapedData.map(publication => ({
+                    ...publication,
+                    authors: publication.authors.slice(0, 2).map(({display_name}) => display_name).join(', ')
+                }))
+                setData(dataWithAuthors)
             })
     }, [page, perPage, sort, search])
 
