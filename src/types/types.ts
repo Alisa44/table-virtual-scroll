@@ -12,7 +12,7 @@ export interface RawPublication extends Publication {
     authors: Author[];
 }
 
-export interface TablePublication extends Publication {
+export interface ITablePublication extends Publication {
     authors: string;
 }
 
