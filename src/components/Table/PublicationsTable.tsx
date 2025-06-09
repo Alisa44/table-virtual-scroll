@@ -1,5 +1,6 @@
 import React, {useEffect, useState} from 'react';
 import type {SortParams, ITablePublication} from "../../types/types.ts";
+import { Table } from "@chakra-ui/react"
 import {getQueryString, mapDataForTable} from "../../utils/utils.ts";
 import {
     createColumnHelper,
@@ -38,12 +39,17 @@ export const columns = [
     }),
 ]
 
-const Table = () => {
+type ColumnSort = {
+    id: string
+    desc: boolean
+}
+
+const PublicationsTable = () => {
     const [data, setData] = useState<ITablePublication[]>(
         []);
     const [page, setPage] = useState<number>(1);
     const [perPage, setPerPage] = useState<number>(10);
-    const [sort, setSort] = useState<SortParams|null>(null);
+    const [sorting, setSorting] = useState<ColumnSort[]>([]);
     const [search, setSearch] = useState<string>('');
 
     const rerender = React.useReducer(() => ({}), {})[1]
@@ -52,10 +58,15 @@ const Table = () => {
         data,
         columns,
         getCoreRowModel: getCoreRowModel(),
+        state: {
+            sorting,
+        },
+        enableSorting: true,
+        onSortingChange: setSorting,
     })
 
     useEffect(() => {
-        const queryString = getQueryString(page, perPage, sort ?? undefined, search ?? undefined)
+        const queryString = getQueryString(page, perPage, sorting, search ?? undefined)
         fetch(queryString)
             .then(res => res.json())
             .then(response => {
@@ -66,55 +77,39 @@ const Table = () => {
                 }))
                 setData(dataWithAuthors)
             })
-    }, [page, perPage, sort, search])
+    }, [page, perPage, sorting, search])
 
     return (
         <div className="p-2">
-            <table>
-                <thead>
-                {table.getHeaderGroups().map(headerGroup => (
-                    <tr key={headerGroup.id}>
-                        {headerGroup.headers.map(header => (
-                            <th key={header.id}>
-                                {header.isPlaceholder
-                                    ? null
-                                    : flexRender(
-                                        header.column.columnDef.header,
-                                        header.getContext()
-                                    )}
-                            </th>
-                        ))}
-                    </tr>
-                ))}
-                </thead>
-                <tbody>
-                {table.getRowModel().rows.map(row => (
-                    <tr key={row.id}>
-                        {row.getVisibleCells().map(cell => (
-                            <td key={cell.id}>
-                                {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                            </td>
-                        ))}
-                    </tr>
-                ))}
-                </tbody>
-                <tfoot>
-                {table.getFooterGroups().map(footerGroup => (
-                    <tr key={footerGroup.id}>
-                        {footerGroup.headers.map(header => (
-                            <th key={header.id}>
-                                {header.isPlaceholder
-                                    ? null
-                                    : flexRender(
-                                        header.column.columnDef.footer,
-                                        header.getContext()
-                                    )}
-                            </th>
-                        ))}
-                    </tr>
-                ))}
-                </tfoot>
-            </table>
+            <Table.Root>
+                <Table.Header>
+                    {table.getHeaderGroups().map(headerGroup => (
+                        <Table.Row key={headerGroup.id}>
+                            {headerGroup.headers.map(header => (
+                                <Table.ColumnHeader key={header.id}>
+                                    {header.isPlaceholder
+                                        ? null
+                                        : flexRender(
+                                            header.column.columnDef.header,
+                                            header.getContext()
+                                        )}
+                                </Table.ColumnHeader>
+                            ))}
+                        </Table.Row>
+                    ))}
+                </Table.Header>
+                <Table.Body>
+                    {table.getRowModel().rows.map(row => (
+                        <Table.Row key={row.id}>
+                            {row.getVisibleCells().map(cell => (
+                                <Table.Cell key={cell.id}>
+                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                                </Table.Cell>
+                            ))}
+                        </Table.Row>
+                    ))}
+                </Table.Body>
+            </Table.Root>
             <div className="h-4" />
             <button onClick={() => rerender()} className="border p-2">
                 Rerender
@@ -123,4 +118,4 @@ const Table = () => {
     );
 };
 
-export default Table;
+export default PublicationsTable;

@@ -1,11 +1,12 @@
 import './App.css'
-import Table from "./components/Table/Table.tsx";
+import PublicationsTable from "./components/Table/PublicationsTable.tsx";
+import { Provider } from './components/ui/provider.tsx'
 
 function App() {
   return (
-    <div>
-      <Table/>
-    </div>
+    <Provider>
+      <PublicationsTable/>
+    </Provider>
   )
 }
 

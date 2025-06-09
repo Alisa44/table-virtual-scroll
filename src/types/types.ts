@@ -17,6 +17,6 @@ export interface ITablePublication extends Publication {
 }
 
 export type SortParams = {
-    field: keyof RawPublication;
-    direction: 'asc' | 'desc';
+    id: keyof RawPublication;
+    desc: boolean;
 }
