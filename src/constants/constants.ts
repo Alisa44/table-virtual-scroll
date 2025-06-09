@@ -1,0 +1,1 @@
+const URL: string = "https://api.openalex.org/works";
