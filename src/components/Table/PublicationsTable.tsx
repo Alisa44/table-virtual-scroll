@@ -89,11 +89,11 @@ const PublicationsTable = () => {
                 sorting, //refetch when sorting changes
             ],
             queryFn: async ({ pageParam = 1 }) => {
-                const start = (pageParam as number > 0 ? pageParam as number : 1) * fetchSize
+                const start = (pageParam as number) * fetchSize
                 return await fetchData(start, fetchSize, sorting)
             },
-            initialPageParam: 0,
-            getNextPageParam: (_lastGroup, groups) => groups.length,
+            initialPageParam: 1,
+            getNextPageParam: (_lastGroup, groups) => groups.meta?.count,
             refetchOnWindowFocus: false,
             placeholderData: keepPreviousData,
         })

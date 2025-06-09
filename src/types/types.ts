@@ -28,6 +28,6 @@ export type ColumnSort = {
 
 export interface PublicationApiResponse {
     group_by: [];
-    meta: any;
+    meta: {count: number};
     results: RawPublication[];
 }
