@@ -1,7 +1,7 @@
 import {URL} from "../constants/constants.ts";
-import type {RawPublication, SortParams} from "../types/types.ts";
+import type {ColumnSort, RawPublication} from "../types/types.ts";
 
-export const getQueryString = (page = 0, perPage = 10, sort?: SortParams[], search?: string): string => {
+export const getQueryString = (page = 0, perPage = 10, sort?: ColumnSort[], search?: string): string => {
     let queryString = `${URL}?per-page=${perPage}&page=${page}`;
     if (sort?.length) {
         const {id, desc} = sort[0];

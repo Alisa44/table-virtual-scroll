@@ -1,14 +1,12 @@
-import React, {useEffect, useState} from 'react';
-import type {SortParams, ITablePublication} from "../../types/types.ts";
-import { Table } from "@chakra-ui/react"
+import React, {useCallback, useEffect, useState} from 'react';
+import type {ColumnSort, ITablePublication, PublicationApiResponse} from "../../types/types.ts";
+import {Table} from "@chakra-ui/react"
 import {getQueryString, mapDataForTable} from "../../utils/utils.ts";
-import {
-    createColumnHelper,
-    flexRender,
-    getCoreRowModel,
-    useReactTable,
-} from '@tanstack/react-table'
-// import {columns} from './utils.tsx';
+import {createColumnHelper, flexRender, getCoreRowModel, useReactTable,} from '@tanstack/react-table'
+import {useVirtualizer} from "@tanstack/react-virtual";
+import {keepPreviousData, useInfiniteQuery,} from '@tanstack/react-query'
+
+const fetchSize = 50
 
 export const columnHelper = createColumnHelper<ITablePublication>()
 
@@ -39,23 +37,14 @@ export const columns = [
     }),
 ]
 
-type ColumnSort = {
-    id: string
-    desc: boolean
-}
-
 const PublicationsTable = () => {
-    const [data, setData] = useState<ITablePublication[]>(
+    const [tableData, setTableData] = useState<ITablePublication[]>(
         []);
-    const [page, setPage] = useState<number>(1);
-    const [perPage, setPerPage] = useState<number>(10);
     const [sorting, setSorting] = useState<ColumnSort[]>([]);
-    const [search, setSearch] = useState<string>('');
-
-    const rerender = React.useReducer(() => ({}), {})[1]
+    const [totalDBRowCount, setTotalDBRowCount] = useState<number>(0);
 
     const table = useReactTable({
-        data,
+        data: tableData,
         columns,
         getCoreRowModel: getCoreRowModel(),
         state: {
@@ -65,7 +54,17 @@ const PublicationsTable = () => {
         onSortingChange: setSorting,
     })
 
-    useEffect(() => {
+    const { rows } = table.getRowModel()
+    const parentRef = React.useRef<HTMLDivElement>(null)
+
+    const virtualizer = useVirtualizer({
+        count: rows.length,
+        getScrollElement: () => parentRef.current,
+        estimateSize: () => 34,
+        overscan: 20,
+    })
+
+    const fetchData = useCallback((page = 1, perPage = 10, sorting?: ColumnSort[], search?: string): any => {
         const queryString = getQueryString(page, perPage, sorting, search ?? undefined)
         fetch(queryString)
             .then(res => res.json())
@@ -75,45 +74,130 @@ const PublicationsTable = () => {
                     ...publication,
                     authors: publication.authors.slice(0, 2).map(({display_name}) => display_name).join(', ')
                 }))
-                setData(dataWithAuthors)
+                setTotalDBRowCount(response.meta.count);
+                setTableData(dataWithAuthors)
             })
-    }, [page, perPage, sorting, search])
+            .catch(err => {
+                console.log(err)
+            })
+    }, [])
+
+    const { data, fetchNextPage, isFetching, isLoading } =
+        useInfiniteQuery<PublicationApiResponse>({
+            queryKey: [
+                'people',
+                sorting, //refetch when sorting changes
+            ],
+            queryFn: async ({ pageParam = 1 }) => {
+                const start = (pageParam as number > 0 ? pageParam as number : 1) * fetchSize
+                return await fetchData(start, fetchSize, sorting)
+            },
+            initialPageParam: 0,
+            getNextPageParam: (_lastGroup, groups) => groups.length,
+            refetchOnWindowFocus: false,
+            placeholderData: keepPreviousData,
+        })
+
+    const fetchMoreOnBottomReached = useCallback(
+        (containerRefElement?: HTMLDivElement | null) => {
+            if (containerRefElement) {
+                const { scrollHeight, scrollTop, clientHeight } = containerRefElement
+                //once the user has scrolled within 500px of the bottom of the table, fetch more data if we can
+                if (
+                    scrollHeight - scrollTop - clientHeight < 500 &&
+                    !isFetching &&
+                    tableData.length < totalDBRowCount
+                ) {
+                    fetchNextPage()
+                }
+            }
+        },
+        [fetchNextPage, isFetching, data, totalDBRowCount])
+
+    useEffect(() => {
+        fetchMoreOnBottomReached(parentRef.current)
+    }, [fetchMoreOnBottomReached])
+
+    const rowVirtualizer = useVirtualizer({
+        count: rows.length,
+        estimateSize: () => 33, //estimate row height for accurate scrollbar dragging
+        getScrollElement: () => parentRef.current,
+        //measure dynamic row height, except in firefox because it measures table border height incorrectly
+        measureElement:
+            typeof window !== 'undefined' &&
+            navigator.userAgent.indexOf('Firefox') === -1
+                ? element => element?.getBoundingClientRect().height
+                : undefined,
+        overscan: 5,
+    })
 
     return (
-        <div className="p-2">
-            <Table.Root>
-                <Table.Header>
-                    {table.getHeaderGroups().map(headerGroup => (
-                        <Table.Row key={headerGroup.id}>
-                            {headerGroup.headers.map(header => (
-                                <Table.ColumnHeader key={header.id}>
-                                    {header.isPlaceholder
-                                        ? null
-                                        : flexRender(
-                                            header.column.columnDef.header,
-                                            header.getContext()
-                                        )}
-                                </Table.ColumnHeader>
-                            ))}
-                        </Table.Row>
-                    ))}
-                </Table.Header>
-                <Table.Body>
-                    {table.getRowModel().rows.map(row => (
-                        <Table.Row key={row.id}>
-                            {row.getVisibleCells().map(cell => (
-                                <Table.Cell key={cell.id}>
-                                    {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                                </Table.Cell>
-                            ))}
-                        </Table.Row>
-                    ))}
-                </Table.Body>
-            </Table.Root>
-            <div className="h-4" />
-            <button onClick={() => rerender()} className="border p-2">
-                Rerender
-            </button>
+        <div
+            ref={parentRef}
+            className="p-2"
+            style={{
+                overflow: 'auto', //our scrollable table container
+                position: 'relative', //needed for sticky header
+                height: '600px', //should be a fixed height
+            }}
+             onScroll={e => fetchMoreOnBottomReached(e.currentTarget)}
+        >
+            {isLoading ? <h1>Loading...</h1>
+                : <>
+                    <div style={{ height: `${virtualizer.getTotalSize()}px` }}>
+                        <Table.Root>
+                            <Table.Header>
+                                {table.getHeaderGroups().map(headerGroup => (
+                                    <Table.Row key={headerGroup.id}>
+                                        {headerGroup.headers.map(header => (
+                                            <Table.ColumnHeader key={header.id}>
+                                                {header.isPlaceholder
+                                                    ? null
+                                                    : flexRender(
+                                                        header.column.columnDef.header,
+                                                        header.getContext()
+                                                    )}
+                                            </Table.ColumnHeader>
+                                        ))}
+                                    </Table.Row>
+                                ))}
+                            </Table.Header>
+                            <Table.Body
+                                style={{
+                                    display: 'grid',
+                                    height: `${rowVirtualizer.getTotalSize()}px`,
+                                    position: 'relative',
+                                }}>
+                                {rowVirtualizer.getVirtualItems().map((virtualRow, index) => {
+                                    const row = rows[virtualRow.index]
+                                    return (
+                                        <Table.Row
+                                            key={row.id}
+                                            style={{
+                                                height: `${virtualRow.size}px`,
+                                                transform: `translateY(${
+                                                    virtualRow.start - index * virtualRow.size
+                                                }px)`,
+                                            }}
+                                        >
+                                            {row.getVisibleCells().map((cell) => {
+                                                return (
+                                                    <Table.Cell key={cell.id}>
+                                                        {flexRender(
+                                                            cell.column.columnDef.cell,
+                                                            cell.getContext(),
+                                                        )}
+                                                    </Table.Cell>
+                                                )
+                                            })}
+                                        </Table.Row>
+                                    )
+                                })}
+                            </Table.Body>
+                        </Table.Root>
+                    </div>
+                </>
+            }
         </div>
     );
 };

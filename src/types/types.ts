@@ -20,3 +20,14 @@ export type SortParams = {
     id: keyof RawPublication;
     desc: boolean;
 }
+
+export type ColumnSort = {
+    id: string
+    desc: boolean
+}
+
+export interface PublicationApiResponse {
+    group_by: [];
+    meta: any;
+    results: RawPublication[];
+}
