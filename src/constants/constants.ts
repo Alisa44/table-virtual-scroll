@@ -1,1 +1,1 @@
-const URL: string = "https://api.openalex.org/works";
+export const URL: string = "https://api.openalex.org/works";
